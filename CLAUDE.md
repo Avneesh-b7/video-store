@@ -20,6 +20,13 @@ npm start
 
 # Run linting
 npm run lint
+
+# Prisma commands
+npx prisma generate              # Generate Prisma Client after schema changes
+npx prisma migrate dev --name <migration-name>  # Create and apply migration
+npx prisma migrate status        # Check migration status
+npx prisma migrate reset         # Reset database (dev only - WARNING: deletes all data)
+npx prisma studio                # Open Prisma Studio to view/edit data
 ```
 
 ## Tech Stack
@@ -29,6 +36,7 @@ npm run lint
 - **TypeScript**: 5.x with strict mode enabled
 - **Styling**: Tailwind CSS v4 (using PostCSS)
 - **Authentication**: Clerk (@clerk/nextjs)
+- **Database**: PostgreSQL (Neon DB) with Prisma ORM 7.3.0
 - **Fonts**: Geist Sans and Geist Mono (via next/font)
 
 ## Architecture
@@ -51,6 +59,23 @@ npm run lint
 - The application runs in Keyless mode during development (`.clerk/` directory is auto-generated and should not be committed)
 - `ClerkProvider` wraps the entire app in the root layout (`app/layout.tsx`)
 
+### Database with Prisma
+
+- **Database**: Neon DB (PostgreSQL) hosted on Neon's serverless platform
+- **ORM**: Prisma 7.3.0 with custom configuration
+- **Schema location**: `prisma/schema.prisma`
+- **Prisma Client output**: `app/generated/prisma/` (custom location, gitignored)
+- **Configuration**: `prisma.config.ts` at project root loads environment variables from `.env.local` (not `.env`)
+- **Current models**:
+  - `Video`: Stores video metadata (id, title, description, publicId, originalSize, compressedSize, duration, timestamps)
+- **Important notes**:
+  - Prisma Client is generated to `app/generated/prisma/` (not default `node_modules/.prisma/client`)
+  - Import Prisma Client: `import { PrismaClient } from '@/app/generated/prisma'`
+  - Always run `npx prisma generate` after schema changes to regenerate the client
+  - Database connection string (`DATABASE_URL`) must be in `.env.local`, not `.env`
+  - Migration files in `prisma/migrations/` should be committed to git
+  - The `@@map("table_name")` attribute maps model names to database table names (e.g., `Video` model → `videos` table)
+
 ### TypeScript Configuration
 
 - Target: ES2017
@@ -71,10 +96,11 @@ npm run lint
 
 - Authentication pages use Next.js catch-all routes: `app/sign-in/[[...sign-in]]/page.tsx` and `app/sign-up/[[...sign-up]]/page.tsx`
 - All authentication pages are client components (marked with `'use client'`) since Clerk components require client-side interactivity
+- Route group `app/(app)/` contains protected application pages: `/home`, `/video-upload`, `/social-share` (accessible after authentication)
 
 ### Environment Variables
 
-- Clerk configuration requires environment variables (stored in `.env.local`)
+- All environment variables are stored in `.env.local` (not `.env`)
 - Required Clerk environment variables:
   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: Clerk publishable key
   - `CLERK_SECRET_KEY`: Clerk secret key
@@ -82,6 +108,8 @@ npm run lint
   - `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up`
   - `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard`
   - `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard`
+- Required Database environment variables:
+  - `DATABASE_URL`: PostgreSQL connection string from Neon DB
 - All `.env*` files are gitignored by default
 - Never commit the `.clerk/` directory as it contains secret keys in development mode
 

@@ -2,15 +2,10 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 // Auth pages (sign-in, sign-up) - accessible only when NOT logged in
-const isAuthRoute = createRouteMatcher([
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-]);
+const isAuthRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
 
 // Public routes accessible to everyone
-const isPublicRoute = createRouteMatcher([
-  "/",
-]);
+const isPublicRoute = createRouteMatcher(["/", "/home"]);
 
 // Private routes - require authentication
 const isPrivateRoute = createRouteMatcher([
