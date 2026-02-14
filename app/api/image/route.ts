@@ -13,8 +13,8 @@ export async function GET() {
       );
     }
 
-    // Fetch only the current user's videos
-    const videos = await prisma.video.findMany({
+    // Fetch only the current user's images
+    const images = await prisma.image.findMany({
       where: {
         userId: userId,
       },
@@ -23,11 +23,11 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(videos);
+    return NextResponse.json(images);
   } catch (error) {
-    console.error("Error fetching videos:", error);
+    console.error("Error fetching images:", error);
     return NextResponse.json(
-      { error: "Failed to fetch videos" },
+      { error: "Failed to fetch images" },
       { status: 500 },
     );
   }

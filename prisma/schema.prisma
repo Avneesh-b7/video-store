@@ -18,12 +18,14 @@ model Video {
   title          String
   description    String?  @db.Text
   publicId       String   @unique
+  userId         String
   originalSize   Int
   compressedSize Int
   duration       Float
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  @@index([userId])
   @@map("videos")
 }
 
@@ -32,9 +34,11 @@ model Image {
   title        String
   description  String?  @db.Text
   publicId     String   @unique
+  userId       String
   originalSize Int
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  @@index([userId])
   @@map("images")
 }
