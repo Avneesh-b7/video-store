@@ -5,12 +5,16 @@ import { NextResponse } from "next/server";
 const isAuthRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
 
 // Public routes accessible to everyone
-const isPublicRoute = createRouteMatcher(["/", "/home"]);
+const isPublicRoute = createRouteMatcher(["/"]);
 
 // Private routes - require authentication
 const isPrivateRoute = createRouteMatcher([
   "/dashboard(.*)",
-  "/api/videos(.*)",
+  "/video-upload(.*)",
+  "/social-share(.*)",
+  "/api/video(.*)",
+  "/api/image-upload(.*)",
+  "/api/video-upload(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
