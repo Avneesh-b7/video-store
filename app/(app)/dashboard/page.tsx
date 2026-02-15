@@ -1,8 +1,15 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useUser, UserButton } from '@clerk/nextjs';
-import { useEffect, useState } from 'react';
+import Link from "next/link";
+import { useUser, UserButton } from "@clerk/nextjs";
+import { useEffect, useState } from "react";
+import {
+  formatFileSize,
+  formatDuration,
+  getCloudinaryThumbnailUrl,
+} from "@/lib/format";
+import Image from "next/image";
+import VideoPreviewModal from "./VideoPreviewModal";
 
 type Video = {
   id: string;
@@ -26,27 +33,28 @@ type Image = {
   updatedAt: string;
 };
 
-type FilterTab = 'all' | 'videos' | 'images';
+type FilterTab = "all" | "videos" | "images";
 
 export default function DashboardPage() {
   const { user, isLoaded } = useUser();
   const [videos, setVideos] = useState<Video[]>([]);
   const [images, setImages] = useState<Image[]>([]);
-  const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
 
   useEffect(() => {
     const fetchMedia = async () => {
       try {
         // Fetch both videos and images in parallel
         const [videosResponse, imagesResponse] = await Promise.all([
-          fetch('/api/video'),
-          fetch('/api/image'),
+          fetch("/api/video"),
+          fetch("/api/image"),
         ]);
 
         if (!videosResponse.ok || !imagesResponse.ok) {
-          throw new Error('Failed to fetch media');
+          throw new Error("Failed to fetch media");
         }
 
         const videosData = await videosResponse.json();
@@ -55,7 +63,7 @@ export default function DashboardPage() {
         setVideos(videosData);
         setImages(imagesData);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
+        setError(err instanceof Error ? err.message : "An error occurred");
       } finally {
         setLoading(false);
       }
@@ -66,11 +74,12 @@ export default function DashboardPage() {
 
   // Filter content based on active tab
   const getFilteredContent = () => {
-    if (activeFilter === 'videos') return videos;
-    if (activeFilter === 'images') return images;
+    if (activeFilter === "videos") return videos;
+    if (activeFilter === "images") return images;
     // 'all' - combine and sort by date
     return [...videos, ...images].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   };
 
@@ -125,7 +134,7 @@ export default function DashboardPage() {
             <div className="flex items-center gap-3">
               <div className="hidden md:flex flex-col items-end">
                 <p className="text-sm font-medium text-white">
-                  {user?.fullName || user?.firstName || 'User'}
+                  {user?.fullName || user?.firstName || "User"}
                 </p>
                 <p className="text-xs text-zinc-400">
                   {user?.primaryEmailAddress?.emailAddress}
@@ -142,7 +151,7 @@ export default function DashboardPage() {
         {/* Welcome Section */}
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-white">
-            Welcome back, {user?.firstName || 'User'}!
+            Welcome back, {user?.firstName || "User"}!
           </h2>
           <p className="mt-2 text-zinc-400">
             Manage your media library and explore new content
@@ -170,7 +179,9 @@ export default function DashboardPage() {
                 />
               </svg>
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-white">Upload Video</h3>
+            <h3 className="mt-4 text-lg font-semibold text-white">
+              Upload Video
+            </h3>
             <p className="mt-2 text-sm text-zinc-400">
               Upload and share your videos with the world
             </p>
@@ -195,7 +206,9 @@ export default function DashboardPage() {
                 />
               </svg>
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-white">Upload Image</h3>
+            <h3 className="mt-4 text-lg font-semibold text-white">
+              Upload Image
+            </h3>
             <p className="mt-2 text-sm text-zinc-400">
               Upload and share your images with the world
             </p>
@@ -220,7 +233,9 @@ export default function DashboardPage() {
                 />
               </svg>
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-white">Share Socially</h3>
+            <h3 className="mt-4 text-lg font-semibold text-white">
+              Share Socially
+            </h3>
             <p className="mt-2 text-sm text-zinc-400">
               Share your content across social platforms
             </p>
@@ -242,7 +257,9 @@ export default function DashboardPage() {
                 />
               </svg>
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-white">Total Media</h3>
+            <h3 className="mt-4 text-lg font-semibold text-white">
+              Total Media
+            </h3>
             <p className="mt-2 text-3xl font-bold text-white">{totalCount}</p>
             <p className="mt-1 text-xs text-zinc-500">
               {videos.length} videos • {images.length} images
@@ -258,31 +275,31 @@ export default function DashboardPage() {
             {/* Filter Tabs */}
             <div className="flex items-center gap-2 rounded-lg bg-zinc-800/50 p-1">
               <button
-                onClick={() => setActiveFilter('all')}
+                onClick={() => setActiveFilter("all")}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  activeFilter === 'all'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-zinc-400 hover:text-white'
+                  activeFilter === "all"
+                    ? "bg-blue-600 text-white"
+                    : "text-zinc-400 hover:text-white"
                 }`}
               >
                 All ({totalCount})
               </button>
               <button
-                onClick={() => setActiveFilter('videos')}
+                onClick={() => setActiveFilter("videos")}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  activeFilter === 'videos'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-zinc-400 hover:text-white'
+                  activeFilter === "videos"
+                    ? "bg-blue-600 text-white"
+                    : "text-zinc-400 hover:text-white"
                 }`}
               >
                 Videos ({videos.length})
               </button>
               <button
-                onClick={() => setActiveFilter('images')}
+                onClick={() => setActiveFilter("images")}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  activeFilter === 'images'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-zinc-400 hover:text-white'
+                  activeFilter === "images"
+                    ? "bg-blue-600 text-white"
+                    : "text-zinc-400 hover:text-white"
                 }`}
               >
                 Images ({images.length})
@@ -314,13 +331,19 @@ export default function DashboardPage() {
                 />
               </svg>
               <h3 className="mt-4 text-lg font-semibold text-white">
-                No {activeFilter === 'all' ? 'media' : activeFilter} yet
+                No {activeFilter === "all" ? "media" : activeFilter} yet
               </h3>
               <p className="mt-2 text-zinc-400">
-                Upload your first {activeFilter === 'all' ? 'media files' : activeFilter === 'videos' ? 'video' : 'image'} to get started
+                Upload your first{" "}
+                {activeFilter === "all"
+                  ? "media files"
+                  : activeFilter === "videos"
+                    ? "video"
+                    : "image"}{" "}
+                to get started
               </p>
               <div className="mt-6 flex items-center justify-center gap-3">
-                {(activeFilter === 'all' || activeFilter === 'videos') && (
+                {(activeFilter === "all" || activeFilter === "videos") && (
                   <Link
                     href="/video-upload"
                     className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
@@ -328,7 +351,7 @@ export default function DashboardPage() {
                     Upload Video
                   </Link>
                 )}
-                {(activeFilter === 'all' || activeFilter === 'images') && (
+                {(activeFilter === "all" || activeFilter === "images") && (
                   <Link
                     href="/image-upload"
                     className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
@@ -341,67 +364,203 @@ export default function DashboardPage() {
           ) : (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {filteredContent.map((item) => {
-                const isVideo = 'duration' in item;
+                const isVideo = "duration" in item;
+                const thumbnailUrl = getCloudinaryThumbnailUrl(
+                  item.publicId,
+                  isVideo ? "video" : "image",
+                );
+
                 return (
                   <div
                     key={item.id}
-                    className="rounded-lg border border-zinc-700 bg-zinc-800/50 p-6 transition-all hover:border-zinc-600"
+                    className={`group rounded-lg border border-zinc-700 bg-zinc-800/50 overflow-hidden transition-all hover:border-zinc-600 hover:shadow-lg hover:shadow-blue-500/10 ${
+                      isVideo ? "cursor-pointer" : ""
+                    }`}
+                    onClick={() => isVideo && setSelectedVideo(item as Video)}
                   >
-                    {/* Media Type Badge */}
-                    <div className="mb-3 flex items-center gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
-                          isVideo
-                            ? 'bg-purple-500/10 text-purple-400'
-                            : 'bg-green-500/10 text-green-400'
-                        }`}
-                      >
-                        {isVideo ? (
-                          <>
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                            Video
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            Image
-                          </>
-                        )}
-                      </span>
-                    </div>
-
-                    {/* Title and Description */}
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-white line-clamp-1">
-                          {item.title}
-                        </h4>
-                        {item.description && (
-                          <p className="mt-2 text-sm text-zinc-400 line-clamp-2">
-                            {item.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Metadata */}
-                    <div className="mt-4 flex items-center gap-4 text-xs text-zinc-500">
-                      {isVideo ? (
-                        <>
-                          <span>{((item as Video).duration / 60).toFixed(1)} min</span>
-                          <span>•</span>
-                          <span>{((item as Video).compressedSize / 1024 / 1024).toFixed(1)} MB</span>
-                        </>
+                    {/* Thumbnail */}
+                    <div className="relative aspect-video bg-zinc-900 overflow-hidden">
+                      {thumbnailUrl ? (
+                        <Image
+                          src={thumbnailUrl}
+                          alt={item.title}
+                          fill
+                          className="object-cover transition-transform duration-300 group-hover:scale-105"
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        />
                       ) : (
-                        <span>{(item.originalSize / 1024 / 1024).toFixed(2)} MB</span>
+                        <div className="flex items-center justify-center h-full">
+                          <svg
+                            className="h-12 w-12 text-zinc-600"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                          </svg>
+                        </div>
+                      )}
+
+                      {/* Media Type Badge Overlay */}
+                      <div className="absolute top-2 left-2">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium backdrop-blur-sm ${
+                            isVideo
+                              ? "bg-purple-500/90 text-white"
+                              : "bg-green-500/90 text-white"
+                          }`}
+                        >
+                          {isVideo ? (
+                            <>
+                              <svg
+                                className="w-3 h-3"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                />
+                              </svg>
+                              Video
+                            </>
+                          ) : (
+                            <>
+                              <svg
+                                className="w-3 h-3"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                />
+                              </svg>
+                              Image
+                            </>
+                          )}
+                        </span>
+                      </div>
+
+                      {/* Play Button Overlay for Videos */}
+                      {isVideo && (
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+                          <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center transform group-hover:scale-110 transition-transform">
+                            <svg
+                              className="w-8 h-8 text-white ml-1"
+                              fill="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Duration Badge for Videos */}
+                      {isVideo && (
+                        <div className="absolute bottom-2 right-2">
+                          <span className="inline-flex items-center gap-1 rounded bg-black/75 backdrop-blur-sm px-2 py-1 text-xs font-medium text-white">
+                            {formatDuration((item as Video).duration)}
+                          </span>
+                        </div>
                       )}
                     </div>
-                    <div className="mt-2 text-xs text-zinc-500">
-                      {new Date(item.createdAt).toLocaleDateString()}
+
+                    {/* Content */}
+                    <div className="p-4">
+                      {/* Title */}
+                      <h4 className="font-semibold text-white line-clamp-1">
+                        {item.title}
+                      </h4>
+
+                      {/* Description */}
+                      {item.description && (
+                        <p className="mt-2 text-sm text-zinc-400 line-clamp-2">
+                          {item.description}
+                        </p>
+                      )}
+
+                      {/* Metadata */}
+                      <div className="mt-3 space-y-1">
+                        <div className="flex items-center gap-3 text-xs text-zinc-500">
+                          <span className="flex items-center gap-1">
+                            <svg
+                              className="w-3 h-3"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
+                              />
+                            </svg>
+                            {formatFileSize(
+                              isVideo
+                                ? (item as Video).compressedSize
+                                : item.originalSize,
+                            )}
+                          </span>
+                          {isVideo && (
+                            <>
+                              <span>•</span>
+                              <span className="flex items-center gap-1">
+                                <svg
+                                  className="w-3 h-3"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                  />
+                                </svg>
+                                {formatDuration((item as Video).duration)}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-zinc-500">
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                          </svg>
+                          {new Date(item.createdAt).toLocaleDateString(
+                            "en-US",
+                            {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            },
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
@@ -410,6 +569,12 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Video Preview Modal */}
+      <VideoPreviewModal
+        video={selectedVideo}
+        onClose={() => setSelectedVideo(null)}
+      />
     </div>
   );
 }
