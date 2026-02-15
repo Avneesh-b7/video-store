@@ -1,90 +1,213 @@
-"use client";
+/**
+ * DASHBOARD PAGE - Main page where users see all their uploaded videos and images
+ *
+ * FLOW:
+ * 1. Component loads → Fetches videos & images from database (via API)
+ * 2. User sees their media in cards (with thumbnails from Cloudinary)
+ * 3. User can filter by "All", "Videos", or "Images"
+ * 4. User clicks a video card → Modal opens with video player
+ * 5. Video plays from Cloudinary (streaming, like YouTube)
+ */
+
+"use client"; // This makes it a Client Component (can use useState, onClick, etc.)
 
 import Link from "next/link";
-import { useUser, UserButton } from "@clerk/nextjs";
+import { useUser, UserButton } from "@clerk/nextjs"; // Clerk = Authentication
 import { useEffect, useState } from "react";
 import {
-  formatFileSize,
-  formatDuration,
-  getCloudinaryThumbnailUrl,
+  formatFileSize, // Converts bytes → "2 MB"
+  formatDuration, // Converts seconds → "2:05"
+  getCloudinaryThumbnailUrl, // Generates Cloudinary thumbnail URL
 } from "@/lib/format";
 import Image from "next/image";
-import VideoPreviewModal from "./VideoPreviewModal";
+import VideoPreviewModal from "./VideoPreviewModal"; // Modal that plays videos
+import DeleteConfirmDialog from "./DeleteConfirmDialog"; // Delete confirmation dialog
+import { Trash2 } from "lucide-react"; // Trash icon
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+// These define the shape of data we get from the database
 
 type Video = {
-  id: string;
-  title: string;
-  description: string | null;
-  publicId: string;
-  originalSize: number;
-  compressedSize: number;
-  duration: number;
-  createdAt: string;
-  updatedAt: string;
+  id: string; // Unique ID in database
+  title: string; // Video title (user input)
+  description: string | null; // Optional description
+  publicId: string; // Address of video on Cloudinary (like "videos/user_123/12345")
+  originalSize: number; // Original file size in bytes
+  compressedSize: number; // Compressed size in bytes (after Cloudinary optimization)
+  duration: number; // Length of video in seconds
+  createdAt: string; // When it was uploaded
+  updatedAt: string; // Last updated
 };
 
 type Image = {
   id: string;
   title: string;
   description: string | null;
-  publicId: string;
+  publicId: string; // Address of image on Cloudinary
   originalSize: number;
   createdAt: string;
   updatedAt: string;
 };
 
-type FilterTab = "all" | "videos" | "images";
+type FilterTab = "all" | "videos" | "images"; // Filter options
 
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 export default function DashboardPage() {
-  const { user, isLoaded } = useUser();
+  // ---------------------------------------------------------------------------
+  // STATE MANAGEMENT
+  // ---------------------------------------------------------------------------
+  // State = data that can change and triggers re-renders when updated
+
+  const { user, isLoaded } = useUser(); // Get logged-in user from Clerk
+
+  // Arrays to store videos and images fetched from database
   const [videos, setVideos] = useState<Video[]>([]);
   const [images, setImages] = useState<Image[]>([]);
+
+  // Which filter tab is active? (all/videos/images)
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
+
+  // Loading state - shows "Loading..." while fetching data
   const [loading, setLoading] = useState(true);
+
+  // Error state - stores error message if fetch fails
   const [error, setError] = useState<string | null>(null);
+
+  // Which video is currently being previewed in the modal? (null = no video selected)
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
+
+  // Delete functionality state
+  const [itemToDelete, setItemToDelete] = useState<{
+    id: string;
+    title: string;
+    type: "video" | "image";
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // DATA FETCHING
+  // ---------------------------------------------------------------------------
+  // useEffect runs when component first loads (like componentDidMount)
+  // The empty array [] means "run once on mount"
 
   useEffect(() => {
     const fetchMedia = async () => {
       try {
-        // Fetch both videos and images in parallel
+        // STEP 1: Fetch videos and images from API routes (in parallel for speed)
+        // These API routes query the database and return JSON
         const [videosResponse, imagesResponse] = await Promise.all([
-          fetch("/api/video"),
-          fetch("/api/image"),
+          fetch("/api/video"), // GET /api/video → Returns user's videos from database
+          fetch("/api/image"), // GET /api/image → Returns user's images from database
         ]);
 
+        // STEP 2: Check if both requests succeeded
         if (!videosResponse.ok || !imagesResponse.ok) {
           throw new Error("Failed to fetch media");
         }
 
+        // STEP 3: Convert responses from JSON to JavaScript objects
         const videosData = await videosResponse.json();
         const imagesData = await imagesResponse.json();
 
+        // STEP 4: Update state with fetched data
+        // This triggers a re-render, showing the media cards
         setVideos(videosData);
         setImages(imagesData);
       } catch (err) {
+        // If anything goes wrong, store error message
         setError(err instanceof Error ? err.message : "An error occurred");
       } finally {
+        // Always set loading to false (whether success or error)
         setLoading(false);
       }
     };
 
+    // Actually call the function to fetch data
     fetchMedia();
-  }, []);
+  }, []); // Empty array = run only once when component mounts
 
-  // Filter content based on active tab
+  // ---------------------------------------------------------------------------
+  // DELETE FUNCTIONALITY
+  // ---------------------------------------------------------------------------
+
+  /**
+   * handleDelete - Deletes a video or image
+   *
+   * Flow:
+   * 1. User confirms deletion in dialog
+   * 2. Call DELETE API endpoint
+   * 3. Remove item from local state (videos or images array)
+   * 4. Close dialog
+   */
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
+
+    setIsDeleting(true);
+
+    try {
+      // Call DELETE API endpoint
+      const endpoint =
+        itemToDelete.type === "video"
+          ? `/api/video/${itemToDelete.id}`
+          : `/api/image/${itemToDelete.id}`;
+
+      const response = await fetch(endpoint, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete");
+      }
+
+      // Remove from local state to update UI immediately
+      if (itemToDelete.type === "video") {
+        setVideos((prev) => prev.filter((v) => v.id !== itemToDelete.id));
+      } else {
+        setImages((prev) => prev.filter((i) => i.id !== itemToDelete.id));
+      }
+
+      // Close dialog
+      setItemToDelete(null);
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Failed to delete. Please try again.",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // FILTERING LOGIC
+  // ---------------------------------------------------------------------------
+  // This function returns the filtered content based on active tab
+
   const getFilteredContent = () => {
-    if (activeFilter === "videos") return videos;
-    if (activeFilter === "images") return images;
-    // 'all' - combine and sort by date
+    if (activeFilter === "videos") return videos; // Show only videos
+    if (activeFilter === "images") return images; // Show only images
+
+    // "all" - combine videos and images, then sort by newest first
     return [...videos, ...images].sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   };
 
-  const filteredContent = getFilteredContent();
-  const totalCount = videos.length + images.length;
+  const filteredContent = getFilteredContent(); // Get the filtered items to display
+  const totalCount = videos.length + images.length; // Total number of items
+
+  // ---------------------------------------------------------------------------
+  // LOADING STATE
+  // ---------------------------------------------------------------------------
+  // If user info hasn't loaded yet from Clerk, show loading screen
 
   if (!isLoaded) {
     return (
@@ -94,12 +217,18 @@ export default function DashboardPage() {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // MAIN RENDER
+  // ---------------------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-900 via-zinc-800 to-zinc-900">
-      {/* Navigation */}
+    <div className="min-h-screen bg-linear-to-b from-zinc-900 via-zinc-800 to-zinc-900">
+      {/* ===================================================================== */}
+      {/* NAVIGATION BAR */}
+      {/* ===================================================================== */}
       <nav className="border-b border-zinc-700 bg-zinc-900/50 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
+            {/* Left side - Logo and nav links */}
             <div className="flex items-center gap-8">
               <Link href="/dashboard">
                 <h1 className="text-2xl font-bold text-white">VideoStore</h1>
@@ -131,6 +260,8 @@ export default function DashboardPage() {
                 </Link>
               </div>
             </div>
+
+            {/* Right side - User info and sign out button */}
             <div className="flex items-center gap-3">
               <div className="hidden md:flex flex-col items-end">
                 <p className="text-sm font-medium text-white">
@@ -140,13 +271,16 @@ export default function DashboardPage() {
                   {user?.primaryEmailAddress?.emailAddress}
                 </p>
               </div>
+              {/* Clerk's pre-built sign-out button */}
               <UserButton afterSignOutUrl="/" />
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Main Content */}
+      {/* ===================================================================== */}
+      {/* MAIN CONTENT AREA */}
+      {/* ===================================================================== */}
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Welcome Section */}
         <div className="mb-8">
@@ -158,8 +292,11 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Quick Actions */}
+        {/* ================================================================= */}
+        {/* QUICK ACTION CARDS */}
+        {/* ================================================================= */}
         <div className="mb-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Upload Video Card */}
           <Link
             href="/video-upload"
             className="group rounded-lg border border-zinc-700 bg-zinc-800/50 p-6 transition-all hover:border-blue-500 hover:bg-zinc-800"
@@ -187,6 +324,7 @@ export default function DashboardPage() {
             </p>
           </Link>
 
+          {/* Upload Image Card */}
           <Link
             href="/image-upload"
             className="group rounded-lg border border-zinc-700 bg-zinc-800/50 p-6 transition-all hover:border-blue-500 hover:bg-zinc-800"
@@ -214,6 +352,7 @@ export default function DashboardPage() {
             </p>
           </Link>
 
+          {/* Social Share Card */}
           <Link
             href="/social-share"
             className="group rounded-lg border border-zinc-700 bg-zinc-800/50 p-6 transition-all hover:border-blue-500 hover:bg-zinc-800"
@@ -241,6 +380,7 @@ export default function DashboardPage() {
             </p>
           </Link>
 
+          {/* Total Media Count Card */}
           <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 p-6">
             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-zinc-700">
               <svg
@@ -267,23 +407,28 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Media Library Section */}
+        {/* ================================================================= */}
+        {/* MEDIA LIBRARY SECTION */}
+        {/* ================================================================= */}
         <div>
           <div className="mb-6 flex items-center justify-between">
             <h3 className="text-2xl font-bold text-white">Media Library</h3>
 
-            {/* Filter Tabs */}
+            {/* Filter Tabs - Click to filter by all/videos/images */}
             <div className="flex items-center gap-2 rounded-lg bg-zinc-800/50 p-1">
+              {/* "All" tab */}
               <button
-                onClick={() => setActiveFilter("all")}
+                onClick={() => setActiveFilter("all")} // When clicked, update activeFilter state
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                   activeFilter === "all"
-                    ? "bg-blue-600 text-white"
-                    : "text-zinc-400 hover:text-white"
+                    ? "bg-blue-600 text-white" // Active styling
+                    : "text-zinc-400 hover:text-white" // Inactive styling
                 }`}
               >
                 All ({totalCount})
               </button>
+
+              {/* "Videos" tab */}
               <button
                 onClick={() => setActiveFilter("videos")}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
@@ -294,6 +439,8 @@ export default function DashboardPage() {
               >
                 Videos ({videos.length})
               </button>
+
+              {/* "Images" tab */}
               <button
                 onClick={() => setActiveFilter("images")}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
@@ -307,15 +454,22 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* =============================================================== */}
+          {/* CONDITIONAL RENDERING - Show different UI based on state */}
+          {/* =============================================================== */}
+
+          {/* CASE 1: Still loading data */}
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="text-zinc-400">Loading media...</div>
             </div>
-          ) : error ? (
+          ) : /* CASE 2: Error occurred */
+          error ? (
             <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4">
               <p className="text-red-400">Error: {error}</p>
             </div>
-          ) : filteredContent.length === 0 ? (
+          ) : /* CASE 3: No media to show (empty state) */
+          filteredContent.length === 0 ? (
             <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 p-12 text-center">
               <svg
                 className="mx-auto h-12 w-12 text-zinc-600"
@@ -342,6 +496,7 @@ export default function DashboardPage() {
                     : "image"}{" "}
                 to get started
               </p>
+              {/* Upload buttons */}
               <div className="mt-6 flex items-center justify-center gap-3">
                 {(activeFilter === "all" || activeFilter === "videos") && (
                   <Link
@@ -362,33 +517,48 @@ export default function DashboardPage() {
               </div>
             </div>
           ) : (
+            /* CASE 4: Show the media grid */
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {/*
+                Loop through each item in filteredContent and create a card
+                .map() is like a for loop that returns JSX for each item
+              */}
               {filteredContent.map((item) => {
+                // Check if this item is a video or image
+                // Videos have a "duration" field, images don't
                 const isVideo = "duration" in item;
+
+                // Generate Cloudinary thumbnail URL using the publicId
+                // Example: "https://res.cloudinary.com/cloud-name/video/upload/w_400,h_300/videos/user_123/12345.jpg"
                 const thumbnailUrl = getCloudinaryThumbnailUrl(
-                  item.publicId,
-                  isVideo ? "video" : "image",
+                  item.publicId, // Address on Cloudinary
+                  isVideo ? "video" : "image", // Type determines the URL format
                 );
 
                 return (
                   <div
-                    key={item.id}
+                    key={item.id} // Unique key for React's rendering optimization
                     className={`group rounded-lg border border-zinc-700 bg-zinc-800/50 overflow-hidden transition-all hover:border-zinc-600 hover:shadow-lg hover:shadow-blue-500/10 ${
-                      isVideo ? "cursor-pointer" : ""
+                      isVideo ? "cursor-pointer" : "" // Videos are clickable (cursor changes to pointer)
                     }`}
+                    // CLICK HANDLER - When video card is clicked, open modal
                     onClick={() => isVideo && setSelectedVideo(item as Video)}
                   >
-                    {/* Thumbnail */}
+                    {/* ================================================== */}
+                    {/* THUMBNAIL SECTION */}
+                    {/* ================================================== */}
                     <div className="relative aspect-video bg-zinc-900 overflow-hidden">
+                      {/* Show thumbnail if URL exists */}
                       {thumbnailUrl ? (
                         <Image
-                          src={thumbnailUrl}
+                          src={thumbnailUrl} // Cloudinary thumbnail URL
                           alt={item.title}
-                          fill
-                          className="object-cover transition-transform duration-300 group-hover:scale-105"
+                          fill // Fill the parent container
+                          className="object-cover transition-transform duration-300 group-hover:scale-105" // Zoom on hover
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                         />
                       ) : (
+                        // Fallback icon if no thumbnail
                         <div className="flex items-center justify-center h-full">
                           <svg
                             className="h-12 w-12 text-zinc-600"
@@ -406,13 +576,13 @@ export default function DashboardPage() {
                         </div>
                       )}
 
-                      {/* Media Type Badge Overlay */}
+                      {/* Media Type Badge (top-left corner) */}
                       <div className="absolute top-2 left-2">
                         <span
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium backdrop-blur-sm ${
                             isVideo
-                              ? "bg-purple-500/90 text-white"
-                              : "bg-green-500/90 text-white"
+                              ? "bg-purple-500/90 text-white" // Purple for videos
+                              : "bg-green-500/90 text-white" // Green for images
                           }`}
                         >
                           {isVideo ? (
@@ -453,7 +623,7 @@ export default function DashboardPage() {
                         </span>
                       </div>
 
-                      {/* Play Button Overlay for Videos */}
+                      {/* Play Button Overlay (only for videos, shows on hover) */}
                       {isVideo && (
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
                           <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center transform group-hover:scale-110 transition-transform">
@@ -468,33 +638,54 @@ export default function DashboardPage() {
                         </div>
                       )}
 
-                      {/* Duration Badge for Videos */}
+                      {/* Duration Badge (bottom-right corner, only for videos) */}
                       {isVideo && (
                         <div className="absolute bottom-2 right-2">
                           <span className="inline-flex items-center gap-1 rounded bg-black/75 backdrop-blur-sm px-2 py-1 text-xs font-medium text-white">
+                            {/* Format duration from seconds to "2:05" */}
                             {formatDuration((item as Video).duration)}
                           </span>
                         </div>
                       )}
                     </div>
 
-                    {/* Content */}
+                    {/* ================================================== */}
+                    {/* CARD CONTENT SECTION */}
+                    {/* ================================================== */}
                     <div className="p-4">
-                      {/* Title */}
-                      <h4 className="font-semibold text-white line-clamp-1">
-                        {item.title}
-                      </h4>
+                      {/* Title and Delete Button */}
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="font-semibold text-white line-clamp-1 flex-1">
+                          {item.title}
+                        </h4>
+                        {/* Delete Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent card click (video preview)
+                            setItemToDelete({
+                              id: item.id,
+                              title: item.title,
+                              type: isVideo ? "video" : "image",
+                            });
+                          }}
+                          className="p-1.5 rounded-md text-zinc-400 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                          aria-label="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
 
-                      {/* Description */}
+                      {/* Description (optional) */}
                       {item.description && (
                         <p className="mt-2 text-sm text-zinc-400 line-clamp-2">
                           {item.description}
                         </p>
                       )}
 
-                      {/* Metadata */}
+                      {/* Metadata (file size, duration, upload date) */}
                       <div className="mt-3 space-y-1">
                         <div className="flex items-center gap-3 text-xs text-zinc-500">
+                          {/* File Size */}
                           <span className="flex items-center gap-1">
                             <svg
                               className="w-3 h-3"
@@ -509,12 +700,15 @@ export default function DashboardPage() {
                                 d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
                               />
                             </svg>
+                            {/* Format bytes to "2 MB" */}
                             {formatFileSize(
                               isVideo
-                                ? (item as Video).compressedSize
-                                : item.originalSize,
+                                ? (item as Video).compressedSize // Use compressed size for videos
+                                : item.originalSize, // Use original size for images
                             )}
                           </span>
+
+                          {/* Duration (only for videos) */}
                           {isVideo && (
                             <>
                               <span>•</span>
@@ -537,6 +731,8 @@ export default function DashboardPage() {
                             </>
                           )}
                         </div>
+
+                        {/* Upload Date */}
                         <div className="flex items-center gap-1 text-xs text-zinc-500">
                           <svg
                             className="w-3 h-3"
@@ -551,6 +747,7 @@ export default function DashboardPage() {
                               d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
                             />
                           </svg>
+                          {/* Format date to "Jan 15, 2024" */}
                           {new Date(item.createdAt).toLocaleDateString(
                             "en-US",
                             {
@@ -570,10 +767,40 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Video Preview Modal */}
+      {/* ===================================================================== */}
+      {/* VIDEO PREVIEW MODAL */}
+      {/* ===================================================================== */}
+      {/*
+        This modal is ALWAYS rendered, but only shows when selectedVideo is not null
+        When you click a video card:
+        1. setSelectedVideo(item) updates state with the video data
+        2. VideoPreviewModal receives the video data as a prop
+        3. Modal appears (it checks if video is null before showing)
+        4. Click close button → setSelectedVideo(null) → Modal disappears
+      */}
       <VideoPreviewModal
-        video={selectedVideo}
-        onClose={() => setSelectedVideo(null)}
+        video={selectedVideo} // Pass the selected video (or null)
+        onClose={() => setSelectedVideo(null)} // Function to close modal
+      />
+
+      {/* ===================================================================== */}
+      {/* DELETE CONFIRMATION DIALOG */}
+      {/* ===================================================================== */}
+      {/*
+        Delete flow:
+        1. User clicks delete button (trash icon) on card
+        2. setItemToDelete({ id, title, type }) → Dialog opens
+        3. User clicks "Delete" → handleDelete() is called
+        4. API DELETE request → Remove from Cloudinary & Database
+        5. Update local state (remove from videos/images array)
+        6. Dialog closes
+      */}
+      <DeleteConfirmDialog
+        isOpen={itemToDelete !== null}
+        onClose={() => setItemToDelete(null)}
+        onConfirm={handleDelete}
+        title={itemToDelete?.title || ""}
+        type={itemToDelete?.type || "video"}
       />
     </div>
   );
