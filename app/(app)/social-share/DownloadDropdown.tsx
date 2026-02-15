@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { Download, ChevronDown } from 'lucide-react';
+import { useState, useRef, useEffect } from "react";
+import { Download, ChevronDown } from "lucide-react";
 import {
   imageSizePresets,
   ImageSizePreset,
   downloadImage,
   downloadVideo,
-} from '@/lib/download';
+} from "@/lib/download";
 
 interface DownloadDropdownProps {
   publicId: string;
   title: string;
-  type: 'video' | 'image';
+  type: "video" | "image";
 }
 
 /**
@@ -32,17 +32,20 @@ export default function DownloadDropdown({
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     }
 
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isOpen]);
 
@@ -59,7 +62,7 @@ export default function DownloadDropdown({
   };
 
   // For videos: Direct download button
-  if (type === 'video') {
+  if (type === "video") {
     return (
       <button
         onClick={handleVideoDownload}
@@ -82,13 +85,15 @@ export default function DownloadDropdown({
         }}
         className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-semibold transition-all ${
           isOpen
-            ? 'bg-green-700 text-white shadow-lg shadow-green-600/50'
-            : 'bg-green-600 text-white hover:bg-green-700 shadow-lg hover:shadow-green-600/50'
+            ? "bg-green-700 text-white shadow-lg shadow-green-600/50"
+            : "bg-green-600 text-white hover:bg-green-700 shadow-lg hover:shadow-green-600/50"
         }`}
       >
         <Download className="w-4 h-4" />
         Download Image
-        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+        />
       </button>
 
       {/* Dropdown Menu - Fixed positioning to prevent clipping */}
