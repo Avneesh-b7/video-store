@@ -1,0 +1,62 @@
+# ============================================
+# Docker Compose Configuration
+# VideoStore App - Multi-Stage Build
+# ============================================
+
+services:
+  # ============================================
+  # Main Application Service
+  # ============================================
+  app:
+    # Build configuration
+    build:
+      context: .                    # Use current directory
+      dockerfile: Dockerfile        # Use our multi-stage Dockerfile
+
+      # Build-time arguments (NEXT_PUBLIC_* variables)
+      # These get baked into the JavaScript bundle during build
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/sign-in}
+        NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/sign-up}
+        NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL:-/dashboard}
+        NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL:-/dashboard}
+        NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}
+
+    # Container name
+    container_name: video-store-app
+
+    # Port mapping (host:container)
+    ports:
+      - "3000:3000"
+
+    # Runtime environment variables (secrets)
+    # Loaded from .env.local at container startup
+    env_file:
+      - .env.local
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Health check (optional but recommended)
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+
+# ============================================
+# Networks (optional - Docker Compose creates default network)
+# ============================================
+# Uncomment if you want to add more services later (e.g., database)
+# networks:
+#   app-network:
+#     driver: bridge
+
+# ============================================
+# Volumes (optional - for data persistence)
+# ============================================
+# Uncomment if you want to add a database with persistent storage
+# volumes:
+#   postgres-data:

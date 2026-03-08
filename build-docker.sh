@@ -5,7 +5,10 @@
 
 set -e  # Exit on error
 
-echo "🐳 Building VideoStore Docker Image..."
+# Accept optional image name/tag as first argument
+IMAGE_NAME="${1:-video-store-app}"
+
+echo "🐳 Building Docker Image: $IMAGE_NAME"
 echo ""
 
 # Check if .env.local exists
@@ -44,11 +47,11 @@ docker build \
   --build-arg NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL="${NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL:-/dashboard}" \
   --build-arg NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL="${NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL:-/dashboard}" \
   --build-arg NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="$NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME" \
-  -t video-store-app \
+  -t "$IMAGE_NAME" \
   .
 
 echo ""
 echo "✅ Build complete!"
 echo ""
 echo "To run the container:"
-echo "  docker run -p 3000:3000 --env-file .env.local video-store-app"
+echo "  docker run -p 3000:3000 --env-file .env.local $IMAGE_NAME"
